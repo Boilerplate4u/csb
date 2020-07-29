@@ -1,0 +1,17 @@
+.settings
+.project
+.cprojectMakefile
+**/CMakeFiles/
+CMakeCache.txt
+*.cmake
+*.so
+*.so.*
+*.dat
+.cproject
+.project
+.settings
+Debug/
+Release/
+asan/
+lsan/
+ubsan/

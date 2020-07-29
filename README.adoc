@@ -1,0 +1,150 @@
+# Prerequisites
+
+To build the application you need following tools and libraries installed in your system:
+
+ - CMake v.3.10 or higher
+ - OpenSSL 1.1.1 development library
+ 
+The application uses tinycbor library, included in the project as a submodule. So, if the application is built offline from sources, it is necessary to provide tinycbor sources (with an Internet connection they are loaded via the command `git submodule update --init` in the command list below).
+
+# Download the source code
+
+```
+ git clone git@bitbucket.org:ssc_xpki/csb.git
+ cd csb
+ git submodule update --init
+```
+
+# Compile the library
+
+CMake is used as a build system for this project. Using CMake all build artifacts like object files, binaries, logs, etc., are stored in a folder where the CMake is being run. Thus, a recommended way of using CMake is to create a new directory and to run CMake from there. This allows to completely separate original sources from building artifacts and makes cleaning process as easy as possible. To cleanup the project it's enough to remove the build files in the folder where CMake was run.
+
+The project supports following build configurations:
+
+- Release - build project with compiler optimization and without debug information
+- Debug - build project with debug information (valgrind must be installed)
+- asan - build with Address Sanitizer features for real-time address checking
+- lsan - build with Address Sanitizer features for real-time memory leaks checking
+- ubsan - build with Address Sanitizer features for real-time checking for undefined behavior
+
+To build the library using Release configuration use following commands:
+
+```
+mkdir Release
+cd Release
+cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake --build .
+```
+
+Now the **Release** directory contains *csb* application.
+
+All configurations use compiler flags ```-Wall -Wextra -Werror``` that enforces the compiler to escalate all warnings as errors.
+
+The library provides debug facilities via enabling numerous debug messages.
+This messages can be enabled by passing any combination of the following cmake parameters:
+
+- ```-DENABLE_DEBUG_MSG=1``` enables all debug messages in application in non-Debug configuration (where debug messages are disabled by default)
+- ```-DENABLE_DEBUG_MSG=0``` disables all debug messages in application in Debug configuration (where debug messages are enabled by default)
+
+So, if all possible tracing is required, invoke cmake with the following parameters:
+
+```
+cmake -DENABLE_DEBUG_MSG=1 .. 
+cmake --build .
+```
+
+# Run application
+
+Application is available after building the project with ```cmake --build .``` in the build directory. 
+
+```
+./csb usage:
+  ./csb <options>
+    -N <count files> - count of CBOR files to be created
+    -f <CBOR file>   - name of CBOR file to be validated
+    -k <key file>    - name of file with key
+    -i <input node>  - input node ID
+    -o <output node> - output node ID
+    -t <target node> - target node ID
+    -v               - validate all files right after signing N (default 50) CBOR files and do not validate them
+```
+
+The `-f` option switches the program to one-file-validation mode disregarding `-N`, `-i`, `-o`, `-t` and `-v` options.
+The `-f` option is used to supply the application with an existing CBOR file name for validation. If used without `-k` option, the program will search for the default **public** key file *prime256v1.pub*.
+
+```
+./csb -k prime256v1.key -f FBF10FA8808B82DF.cbor
+```
+
+The following invocation creates, signs and saves 50 CBOR randomly generated files. The public and private keys are created too and saved to *prime256v1.pub* and *prime256v1.key* files respectively.  
+
+```
+./csb
+```
+
+The structure of the created CBOR files is like the following with corresponding labels
+
+```
+| ----------- | --------------------------------------|
+| Labels      | Types                                 |
+| ----------- | --------------------------------------|
+| "sig"       | uint8_t  signature[SIGNATURE_LENGTH]; |
+| "type"      | uint8_t  type;
+| "iN"        | uint64_t input_node;                  |
+| "oN"        | uint64_t output_node;                 |
+| "tN"        | uint64_t target_node;                 |
+| "notBefore" | uint64_t not_before;                  |
+| "action"    | uint8_t  action;                      |
+| "cmd"       | uint16_t command[COMMAND_MAX_COUNT];  |
+| "block"     | uint64_t block_heigth;                |
+| "cDate"     | uint64_t create_date;                 |
+| "exp"       | uint64_t exp;                         |
+| "txnTime"   | uint64_t txn_time;                    |
+| ----------- | --------------------------------------|
+```
+
+where COMMAND_MAX_COUNT == 10 and SIGNATURE_LENGTH == 73 (up to 72 bytes for prime256v1-based 
+signature and one byte for signature length).
+
+If a **private** key file is provided with `-k` option, then all generated CBOR files will be signed with the supplied key.
+
+```
+./csb -k prime256v1.key
+```
+
+The `-v` option enables signature validation for all CBOR files created and signed during the current program invocation.
+
+The `-N` option allows to change the predefined count of files to any positive number. Tested with 10000 on Raspberry Pi and with 1 Million on an Intel Machine.
+
+The `-i`, `-o` and `-t` options enable providing fixed decimal or hexadecimal values as input, output and target node IDs respectively. Since output node ID is used as a CBOR file name, if `-o` option is provided, an underscore with a hexadecimal suffix will be added to the names of the created files to avoid name collisions. 
+
+# Run tests and Valgrind
+
+To run all tests simply start the *unity_tests* application or ```ctest``` without parameters.
+
+Run ```ctest -T memcheck``` to run Valgrind.
+
+
+# Run Sanitizer
+
+Address Sanitizer works in runtime always if ```CMAKE_BUILD_TYPE=asan``` is chosen. 
+Normally Sanitizer produces list of errors after the program finishes, 
+but all these  errors have been fixed and there are no messages after that.
+Remember that project built with ```CMAKE_BUILD_TYPE=asan``` fails Valgrind
+tests invoked with the command ```ctest -T memcheck```.
+
+# How to view CBOR files' contents?
+
+Building tinycbor library, used in this application, provides in the build directory also *cbordump* application that can print the CBOR file contents in a readable form, like in example below:
+
+```
+./cbordump 14D8B67DF2D01FDB.cbor 
+{"sig": h'483046022100d3c43a0f18f653c244fa26cb68fec725f5b7ee
+9a81aa2e5ebf01206fbe75c22d022100a3a0ed75675eb772ec610b59d56d
+62c6a906388dd8d72eae6a718a6cf6e687db', 
+"iN": 5095637140389980980, "oN": 1502151127788953563, 
+"tN": 104669978687966875, "notBefore": 1147780190378279804, 
+"action": 1, "cmd": [38230, 25427, 25001, 51942, 48102, 9148], 
+"block": 10495325516395951956, "cDate": 1594314809, "exp": 
+13201801922575675427, "txnTime": 1594314809}
+```
